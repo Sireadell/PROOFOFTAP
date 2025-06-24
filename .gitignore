@@ -1,1 +1,47 @@
+# Node dependencies
+node_modules/
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# dotenv environment variables file
+.env
+.env.local
+.env.*.local
+
+# Hardhat files
+artifacts/
+cache/
+typechain/
+
+# Build output
+dist/
+build/
+
+# Vite
+.vite/
+frontend/dist/
+frontend/node_modules/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+
+# Package lock files (optional, but usually keep package-lock.json)
+# If you want to keep package-lock.json, comment the following line:
+# package-lock.json
 .env
