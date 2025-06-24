@@ -3,7 +3,7 @@
   "builds": [
     {
       "src": "frontend/package.json",
-      "use": "@vercel/node"
+      "use": "@vercel/static-build"
     }
   ],
   "routes": [
@@ -12,7 +12,5 @@
       "dest": "/frontend/$1"
     }
   ],
-  "functions": {},
-  "framework": "vite",
-  "rootDirectory": "frontend"
+  "framework": "vite"
 }
