@@ -5,10 +5,10 @@ import 'react-toastify/dist/ReactToastify.css';
 import { WalletProvider } from '@/contexts/WalletContext';
 import TapPage from '@/pages/TapPage';
 import LeaderboardPage from '@/pages/LeaderboardPage';
+import RulesPage from '@/pages/RulesPage';  // NEW import
 
 import WalletConnect from '@/components/WalletConnect';
-import { useTapGem } from '@/hooks/useTapGem';
-import { Twitter, Orbit, Trophy, Circle } from 'lucide-react';
+import { Twitter, Orbit, Trophy, Circle, BookCheck } from 'lucide-react';
 
 export default function App() {
   const [page, setPage] = useState('tap');
@@ -21,6 +21,7 @@ export default function App() {
         <main className="flex-grow w-full max-w-6xl px-4 py-6">
           {page === 'tap' && <TapPage />}
           {page === 'leaderboard' && <LeaderboardPage />}
+          {page === 'rules' && <RulesPage />} {/* NEW page */}
         </main>
 
         <Footer />
@@ -44,7 +45,7 @@ function Header({ page, setPage }) {
         <NavButton
           active={page === 'tap'}
           onClick={() => setPage('tap')}
-          icon={<Circle size={18} />}
+          icon={<Circle size={16} />}
           label="Tap"
         />
         <NavButton
@@ -52,6 +53,12 @@ function Header({ page, setPage }) {
           onClick={() => setPage('leaderboard')}
           icon={<Trophy size={18} />}
           label="Leaderboard"
+        />
+        <NavButton
+          active={page === 'rules'}        // Use lowercase 'rules'
+          onClick={() => setPage('rules')}
+          icon={<BookCheck size={18} />}
+          label="Rules"
         />
       </div>
 
