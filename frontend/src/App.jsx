@@ -5,10 +5,10 @@ import 'react-toastify/dist/ReactToastify.css';
 import { WalletProvider } from '@/contexts/WalletContext';
 import TapPage from '@/pages/TapPage';
 import LeaderboardPage from '@/pages/LeaderboardPage';
+import RulesPage from '@/pages/RulesPage';  // Import Rules page
 
 import WalletConnect from '@/components/WalletConnect';
-import { useTapGem } from '@/hooks/useTapGem';
-import { Twitter, Orbit, Trophy, Circle, Book, BookCheck } from 'lucide-react';
+import { Twitter, Orbit, Trophy, Circle, Book } from 'lucide-react';
 
 export default function App() {
   const [page, setPage] = useState('tap');
@@ -21,7 +21,7 @@ export default function App() {
         <main className="flex-grow w-full max-w-6xl px-4 py-6">
           {page === 'tap' && <TapPage />}
           {page === 'leaderboard' && <LeaderboardPage />}
-           {page === 'Rules' && <RulesPage />}
+          {page === 'rules' && <RulesPage />}
         </main>
 
         <Footer />
@@ -33,16 +33,39 @@ export default function App() {
 
 function Header({ page, setPage }) {
   return (
-   <header className="w-full relative py-8 border-b border-gray-700 bg-black/30 backdrop-blur-md rounded-b-3xl shadow-lg select-none text-center">
-  <h1 className="text-5xl font-extrabold tracking-tight text-white drop-shadow-lg">
-    🪙 PROOF OF TAP
-  </h1>
-  <p className="mt-2 text-lg text-gray-300 max-w-md mx-auto">
-    Build your on-chain reputation by showing up daily
-  </p>
-  {/* nav buttons */}
-</header>
+    <header className="w-full relative py-8 border-b border-gray-700 bg-black/30 backdrop-blur-md rounded-b-3xl shadow-lg select-none text-center">
+      <h1 className="text-5xl font-extrabold tracking-tight text-white drop-shadow-lg">
+        🪙 PROOF OF TAP
+      </h1>
+      <p className="mt-2 text-lg text-gray-300 max-w-md mx-auto">
+        Build your on-chain reputation by showing up daily
+      </p>
 
+      <nav className="mt-6 flex justify-center gap-6 flex-wrap">
+        <NavButton
+          active={page === 'tap'}
+          onClick={() => setPage('tap')}
+          icon={<Circle size={16} />}
+          label="Tap"
+        />
+        <NavButton
+          active={page === 'leaderboard'}
+          onClick={() => setPage('leaderboard')}
+          icon={<Trophy size={18} />}
+          label="Leaderboard"
+        />
+        <NavButton
+          active={page === 'rules'}
+          onClick={() => setPage('rules')}
+          icon={<Book size={18} />}
+          label="Rules"
+        />
+      </nav>
+
+      <div className="absolute top-6 right-6 flex items-center space-x-4">
+        <WalletConnect />
+      </div>
+    </header>
   );
 }
 
@@ -61,6 +84,7 @@ function NavButton({ active, onClick, icon, label }) {
     </button>
   );
 }
+
 function Footer() {
   return (
     <footer className="w-full border-t border-purple-800 bg-black/30 backdrop-blur-md rounded-t-3xl shadow-inner py-6 text-center text-gray-400 text-sm md:text-base select-none">
