@@ -1,7 +1,16 @@
-import React, { createContext, useState, useEffect } from "react";
+import React, { createContext, useState, useEffect, useRef } from "react";
 import { ethers } from "ethers";
+import { toast } from "react-toastify";
 
-export const WalletContext = createContext();
+export const WalletContext = createContext({
+  provider: null,
+  signer: null,
+  account: null,
+  chainId: null,
+  error: null,
+  connectWallet: () => {},
+  disconnectWallet: () => {},
+});
 
 export function WalletProvider({ children }) {
   const [provider, setProvider] = useState(null);
@@ -10,32 +19,80 @@ export function WalletProvider({ children }) {
   const [chainId, setChainId] = useState(null);
   const [error, setError] = useState(null);
 
-  // Load network info from environment variables
+  // Track if welcome or wrongNetwork toast was shown this session
+  const hasToastedRef = useRef({
+    welcome: false,
+    wrongNetwork: false,
+  });
+
   const SOMNIA_CHAIN_ID = Number(import.meta.env.VITE_SOMNIA_CHAIN_ID_DEC);
   const SOMNIA_CHAIN_ID_HEX = import.meta.env.VITE_SOMNIA_CHAIN_ID;
   const SOMNIA_CHAIN_NAME = import.meta.env.VITE_SOMNIA_CHAIN_NAME;
-  const SOMNIA_NATIVE_CURRENCY_NAME = import.meta.env.VITE_SOMNIA_NATIVE_CURRENCY_NAME;
-  const SOMNIA_NATIVE_CURRENCY_SYMBOL = import.meta.env.VITE_SOMNIA_NATIVE_CURRENCY_SYMBOL;
-  const SOMNIA_NATIVE_CURRENCY_DECIMALS = Number(import.meta.env.VITE_SOMNIA_NATIVE_CURRENCY_DECIMALS);
-  const SOMNIA_RPC_URL = import.meta.env.VITE_SOMNIA_RPC_URL;
-  const SOMNIA_EXPLORER_URL = import.meta.env.VITE_SOMNIA_BLOCK_EXPLORER_URL;
-
   const SOMNIA_PARAMS = {
     chainId: SOMNIA_CHAIN_ID_HEX,
     chainName: SOMNIA_CHAIN_NAME,
     nativeCurrency: {
-      name: SOMNIA_NATIVE_CURRENCY_NAME,
-      symbol: SOMNIA_NATIVE_CURRENCY_SYMBOL,
-      decimals: SOMNIA_NATIVE_CURRENCY_DECIMALS,
+      name: import.meta.env.VITE_SOMNIA_NATIVE_CURRENCY_NAME,
+      symbol: import.meta.env.VITE_SOMNIA_NATIVE_CURRENCY_SYMBOL,
+      decimals: Number(import.meta.env.VITE_SOMNIA_NATIVE_CURRENCY_DECIMALS),
     },
-    rpcUrls: [SOMNIA_RPC_URL],
-    blockExplorerUrls: [SOMNIA_EXPLORER_URL],
+    rpcUrls: [import.meta.env.VITE_SOMNIA_RPC_URL],
+    blockExplorerUrls: [import.meta.env.VITE_SOMNIA_BLOCK_EXPLORER_URL],
   };
+
+  function handleAccountsChanged(accounts) {
+    if (accounts.length > 0) {
+      setAccount(accounts[0]);
+      const ethProvider = provider || new ethers.providers.Web3Provider(window.ethereum);
+      setSigner(ethProvider.getSigner());
+      setError(null);
+
+      // Show welcome toast only once per session or per account change
+      if (!hasToastedRef.current.welcome || accounts[0] !== account) {
+        toast.success(`Connected: ${accounts[0].slice(0, 6)}...`);
+        hasToastedRef.current.welcome = true;
+      }
+    } else {
+      // Clear state on disconnect
+      setAccount(null);
+      setSigner(null);
+      setError(null);
+
+      // Reset toast flags on disconnect
+      hasToastedRef.current.welcome = false;
+      hasToastedRef.current.wrongNetwork = false;
+
+      toast.info("Disconnected", { icon: "👋" });
+    }
+  }
+
+  function handleChainChanged(chainIdHex) {
+    const newChainId = parseInt(chainIdHex, 16);
+    setChainId(newChainId);
+
+    if (newChainId !== SOMNIA_CHAIN_ID) {
+      setError("Wrong network");
+
+      if (!hasToastedRef.current.wrongNetwork) {
+        toast.error(`Wrong network: switch to ${SOMNIA_CHAIN_NAME}`);
+        hasToastedRef.current.wrongNetwork = true;
+      }
+      // Also reset welcome toast flag here to allow re-toast after fix
+      hasToastedRef.current.welcome = false;
+    } else {
+      setError(null);
+
+      // Clear wrongNetwork toast flag on correct network
+      hasToastedRef.current.wrongNetwork = false;
+      toast.success(`Switched to ${SOMNIA_CHAIN_NAME}`);
+    }
+  }
 
   useEffect(() => {
     if (!window.ethereum) {
-      setError("MetaMask is not installed");
-      console.error("MetaMask is not installed");
+      const msg = "MetaMask not detected";
+      toast.error(msg);
+      setError(msg);
       return;
     }
 
@@ -45,7 +102,14 @@ export function WalletProvider({ children }) {
     ethProvider.getNetwork().then((network) => {
       setChainId(network.chainId);
       if (network.chainId !== SOMNIA_CHAIN_ID) {
-        promptSwitchNetwork();
+        setError("Wrong network");
+        if (!hasToastedRef.current.wrongNetwork) {
+          toast.error(`Please switch to ${SOMNIA_CHAIN_NAME}`);
+          hasToastedRef.current.wrongNetwork = true;
+        }
+      } else {
+        // On correct network, clear wrongNetwork toast flag
+        hasToastedRef.current.wrongNetwork = false;
       }
     });
 
@@ -53,39 +117,51 @@ export function WalletProvider({ children }) {
       if (accounts.length) {
         setAccount(accounts[0]);
         setSigner(ethProvider.getSigner());
-        console.log('Initial account set:', accounts[0]);
+        if (!hasToastedRef.current.welcome) {
+          toast.success(`Welcome back: ${accounts[0].slice(0, 6)}...`);
+          hasToastedRef.current.welcome = true;
+        }
       }
     });
 
-    window.ethereum.on("accountsChanged", (accounts) => {
-      if (accounts.length) {
-        setAccount(accounts[0]);
-        setSigner(ethProvider.getSigner());
-        setError(null);
-        console.log('Account changed:', accounts[0]);
-      } else {
-        setAccount(null);
-        setSigner(null);
-        console.log('Account disconnected');
-      }
-    });
-
-    window.ethereum.on("chainChanged", (chainIdHex) => {
-      const newChainId = parseInt(chainIdHex, 16);
-      setChainId(newChainId);
-      if (newChainId !== SOMNIA_CHAIN_ID) {
-        promptSwitchNetwork();
-      } else {
-        setError(null);
-      }
-      console.log('Chain changed:', newChainId);
-    });
+    window.ethereum.on("accountsChanged", handleAccountsChanged);
+    window.ethereum.on("chainChanged", handleChainChanged);
 
     return () => {
-      window.ethereum.removeListener("accountsChanged", () => {});
-      window.ethereum.removeListener("chainChanged", () => {});
+      window.ethereum.removeListener("accountsChanged", handleAccountsChanged);
+      window.ethereum.removeListener("chainChanged", handleChainChanged);
     };
   }, []);
+
+  async function connectWallet() {
+    try {
+      if (!window.ethereum) throw new Error("MetaMask not available");
+
+      const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
+      const ethProvider = new ethers.providers.Web3Provider(window.ethereum);
+      const signer = ethProvider.getSigner();
+      const network = await ethProvider.getNetwork();
+
+      if (network.chainId !== SOMNIA_CHAIN_ID) {
+        toast.error(`Wrong network: please switch to ${SOMNIA_CHAIN_NAME}`);
+        await promptSwitchNetwork();
+        return;
+      }
+
+      setProvider(ethProvider);
+      setSigner(signer);
+      setAccount(accounts[0]);
+      setChainId(network.chainId);
+      setError(null);
+
+      toast.success(`Connected: ${accounts[0].slice(0, 6)}...`);
+      hasToastedRef.current.welcome = true;
+      hasToastedRef.current.wrongNetwork = false;
+    } catch (err) {
+      toast.error(err.message || "Wallet connect failed");
+      setError(err.message);
+    }
+  }
 
   async function promptSwitchNetwork() {
     try {
@@ -93,8 +169,9 @@ export function WalletProvider({ children }) {
         method: "wallet_switchEthereumChain",
         params: [{ chainId: SOMNIA_CHAIN_ID_HEX }],
       });
+      toast.success(`Switched to ${SOMNIA_CHAIN_NAME}`);
       setError(null);
-      console.log("Network switched to Somnia");
+      hasToastedRef.current.wrongNetwork = false;
     } catch (switchError) {
       if (switchError.code === 4902) {
         try {
@@ -102,72 +179,36 @@ export function WalletProvider({ children }) {
             method: "wallet_addEthereumChain",
             params: [SOMNIA_PARAMS],
           });
-          setError(null);
-          console.log("Somnia network added to MetaMask");
-        } catch (addError) {
-          setError("Failed to add Somnia network to MetaMask.");
-          console.error("Failed to add Somnia network", addError);
+          toast.success(`Somnia network added`);
+          hasToastedRef.current.wrongNetwork = false;
+        } catch {
+          toast.error("Failed to add Somnia network.");
         }
       } else if (switchError.code === 4001) {
-        setError("Please switch to the Somnia network to use this dApp.");
-        console.warn("User rejected network switch");
+        toast.info("User rejected network switch", { icon: "❌" });
       } else {
-        setError("Failed to switch network.");
-        console.error("Failed to switch network", switchError);
+        toast.error("Network switch failed.");
       }
-    }
-  }
-
-  async function connectWallet() {
-    try {
-      console.log('Connecting wallet...');
-      const accounts = await window.ethereum.request({
-        method: "eth_requestAccounts",
-      });
-      console.log('Wallet connected:', accounts[0]);
-
-      setAccount(accounts[0]);
-
-      if (!provider) {
-        const ethProvider = new ethers.providers.Web3Provider(window.ethereum);
-        setProvider(ethProvider);
-        setSigner(ethProvider.getSigner());
-      } else {
-        setSigner(provider.getSigner());
-      }
-      setError(null);
-
-      const network = await (provider ?? new ethers.providers.Web3Provider(window.ethereum)).getNetwork();
-      setChainId(network.chainId);
-      if (network.chainId !== SOMNIA_CHAIN_ID) {
-        await promptSwitchNetwork();
-      }
-    } catch (err) {
-      console.error('connectWallet error:', err);
-      setError(err.message);
     }
   }
 
   function disconnectWallet() {
-    console.log('Wallet disconnected');
     setAccount(null);
     setSigner(null);
     setError(null);
-  }
 
-  useEffect(() => {
-    if (account) {
-      console.log('Current account:', account);
-    } else {
-      console.log('No wallet connected');
-    }
-  }, [account]);
+    // Reset toast flags on disconnect
+    hasToastedRef.current.welcome = false;
+    hasToastedRef.current.wrongNetwork = false;
+
+    toast.info("Wallet disconnected", { icon: "👋" });
+  }
 
   return (
     <WalletContext.Provider
       value={{
         provider,
-        signer,
+        signer: chainId === SOMNIA_CHAIN_ID ? signer : null,
         account,
         chainId,
         error,

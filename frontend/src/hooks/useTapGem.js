@@ -1,14 +1,14 @@
-import { useState, useEffect, useCallback, useContext } from 'react';
+import { useState, useEffect, useCallback, useContext, useRef } from 'react';
 import { ethers } from 'ethers';
 import TapGemABI from '@/contracts/TapGem.json';
 import { WalletContext } from '@/contexts/WalletContext';
 import { toast } from 'react-toastify';
 
 const TAPGEM_ADDRESS = import.meta.env.VITE_SOMNIA_TAPGEM_ADDRESS;
-console.log("🚨 TAPGEM_ADDRESS:", `"${TAPGEM_ADDRESS}"`);
+const SOMNIA_CHAIN_ID = Number(import.meta.env.VITE_SOMNIA_CHAIN_ID_DEC);
 
 export function useTapGem() {
-  const { account, provider } = useContext(WalletContext);
+  const { account, provider, signer, chainId } = useContext(WalletContext);
 
   const [contract, setContract] = useState(null);
   const [userStats, setUserStats] = useState({
@@ -21,34 +21,31 @@ export function useTapGem() {
   const [loading, setLoading] = useState(false);
   const [claiming, setClaiming] = useState(false);
 
-  // ✅ Setup contract instance when account & provider are valid
+  const hasConnectedOnce = useRef(false);
+
+  // Setup contract silently
   useEffect(() => {
-    if (!provider || !account || !ethers.utils.isAddress(account)) {
+    if (!provider || !signer || !account || !ethers.utils.isAddress(account) || chainId !== SOMNIA_CHAIN_ID) {
       setContract(null);
-      console.warn('Invalid provider or account for contract setup:', { provider, account });
       return;
     }
 
     try {
-      const signer = provider.getSigner();
-      const contractInstance = new ethers.Contract(TAPGEM_ADDRESS, TapGemABI.abi, signer);
-      setContract(contractInstance);
-      console.log('✅ Contract connected for account:', account);
-    } catch (error) {
-      console.error('❌ Failed to connect contract:', error);
-      setContract(null);
-    }
-  }, [provider, account]);
+  const contractInstance = new ethers.Contract(TAPGEM_ADDRESS, TapGemABI.abi, signer);
+  setContract(contractInstance);
+  console.log('✅ Contract connected for account:', account);
+} catch (error) {
+  console.error('❌ Failed to connect contract:', error);
+  setContract(null);
+}
 
-  // ✅ Fetch stats when account and contract are ready
+  }, [provider, signer, account, chainId]);
+
+  // Fetch stats
   const fetchUserStats = useCallback(async () => {
-    if (!contract || !account || !ethers.utils.isAddress(account)) {
-      console.warn('❌ Skipping stats fetch due to invalid setup:', { contract, account });
-      return;
-    }
+    if (!contract || !account || !ethers.utils.isAddress(account)) return;
 
     try {
-      console.log('📊 Fetching stats for:', account);
       const [tapsToday, currentStreak, points, totalSTTClaimed] = await contract.getUserStats(account);
 
       setUserStats({
@@ -58,11 +55,8 @@ export function useTapGem() {
         totalSTTClaimed: ethers.utils.formatEther(totalSTTClaimed),
         address: account,
       });
-
-      console.log('✅ Stats fetched:', { tapsToday, currentStreak, points });
     } catch (error) {
       console.error('❌ Failed to fetch stats:', error);
-      toast.error('Error fetching your stats');
     }
   }, [contract, account]);
 
@@ -72,49 +66,73 @@ export function useTapGem() {
     }
   }, [fetchUserStats, contract, account]);
 
-  // ✅ Tap action
   const tap = useCallback(async () => {
-    if (!contract || !account || !ethers.utils.isAddress(account)) {
-      toast.error('Wallet not connected or contract unavailable');
+    if (!signer || !account) {
+      toast.error('Wallet not connected.');
+      return;
+    }
+    if (chainId !== SOMNIA_CHAIN_ID) {
+      toast.error(`Wrong network. Please switch to ${import.meta.env.VITE_SOMNIA_CHAIN_NAME}.`);
+      return;
+    }
+    if (!contract) {
+      toast.error('Contract unavailable.');
       return;
     }
 
     setLoading(true);
     try {
-      console.log('🟢 Sending tap tx...');
       const tx = await contract.tap();
       await tx.wait();
       toast.success('Tap successful!');
       await fetchUserStats();
     } catch (error) {
       console.error('❌ Tap failed:', error);
-      toast.error(error?.data?.message || error.message || 'Tap failed');
+      if (error.code === 'ACTION_REJECTED') {
+        toast.info('Transaction rejected by user');
+      } else if (error.code === 'INSUFFICIENT_FUNDS') {
+        toast.error('Insufficient funds for gas.');
+      } else {
+        toast.error(error?.data?.message || error.message || 'Tap failed');
+      }
     } finally {
       setLoading(false);
     }
-  }, [contract, account, fetchUserStats]);
+  }, [contract, signer, account, chainId, fetchUserStats]);
 
-  // ✅ Claim action
   const claimReward = useCallback(async () => {
-    if (!contract || !account || !ethers.utils.isAddress(account)) {
-      toast.error('Wallet not connected or contract unavailable');
+    if (!signer || !account) {
+      toast.error('Wallet not connected.');
+      return;
+    }
+    if (chainId !== SOMNIA_CHAIN_ID) {
+      toast.error(`Wrong network. Please switch to ${import.meta.env.VITE_SOMNIA_CHAIN_NAME}.`);
+      return;
+    }
+    if (!contract) {
+      toast.error('Contract unavailable.');
       return;
     }
 
     setClaiming(true);
     try {
-      console.log('🟢 Sending claim tx...');
       const tx = await contract.claimRewards();
       await tx.wait();
       toast.success('Reward claimed!');
       await fetchUserStats();
     } catch (error) {
       console.error('❌ Claim failed:', error);
-      toast.error(error?.data?.message || error.message || 'Claim failed');
+      if (error.code === 'ACTION_REJECTED') {
+        toast.info('Transaction rejected by user');
+      } else if (error.code === 'INSUFFICIENT_FUNDS') {
+        toast.error('Insufficient funds for gas.');
+      } else {
+        toast.error(error?.data?.message || error.message || 'Claim failed');
+      }
     } finally {
       setClaiming(false);
     }
-  }, [contract, account, fetchUserStats]);
+  }, [contract, signer, account, chainId, fetchUserStats]);
 
   return {
     userStats,

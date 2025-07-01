@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useContext } from 'react';
 import { useTapGem } from '@/hooks/useTapGem';
 import WalletConnect from './WalletConnect';
 import BadgeDisplay from './BadgeDisplay';
@@ -8,11 +8,15 @@ import LoreScroller from './LoreScroller';
 import ClaimRewardButton from './ClaimRewardButton';
 import { getBadgeTier } from '@/utils/getBadgeTier';
 import { showBadgePopup } from './BadgePopup';
+import { WalletContext } from '../contexts/WalletContext';
+import { toast } from 'react-toastify';
 
 export default function TapPage() {
-  const { userStats, loading, claiming, tap, claimReward } = useTapGem();
+  const { userStats, loading, claiming, tap: tapFunc, claimReward: claimRewardFunc } = useTapGem();
   const [showClaimButton, setShowClaimButton] = useState(false);
   const [previousBadge, setPreviousBadge] = useState(null);
+
+  const { signer, chainId } = useContext(WalletContext);
 
   // Show claim button if tapsToday >= max taps
   const MAX_TAPS_PER_DAY = 20;
@@ -28,6 +32,24 @@ export default function TapPage() {
     }
     setPreviousBadge(currentBadge);
   }, [currentBadge, previousBadge]);
+
+  // Guarded tap function
+  const tap = async () => {
+    if (!signer || chainId !== Number(import.meta.env.VITE_SOMNIA_CHAIN_ID_DEC)) {
+      toast.error(`Please connect to ${import.meta.env.VITE_SOMNIA_CHAIN_NAME} network.`);
+      return;
+    }
+    await tapFunc();
+  };
+
+  // Guarded claimReward function
+  const claimReward = async () => {
+    if (!signer || chainId !== Number(import.meta.env.VITE_SOMNIA_CHAIN_ID_DEC)) {
+      toast.error(`Please connect to ${import.meta.env.VITE_SOMNIA_CHAIN_NAME} network.`);
+      return;
+    }
+    await claimRewardFunc();
+  };
 
   return (
     <div className="flex flex-col md:flex-row gap-6 max-w-6xl mx-auto">

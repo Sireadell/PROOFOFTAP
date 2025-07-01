@@ -4,9 +4,10 @@ export default {
   theme: {
     extend: {
       animation: {
-        'breathing': 'breathing 3s ease-in-out infinite',
+        breathing: 'breathing 3s ease-in-out infinite',
         'glow-red': 'glow-red 2.5s ease-in-out infinite',
         'glow-gold': 'glow-gold 2.5s ease-in-out infinite',
+        'gradient-xy': 'gradient-xy 15s ease infinite', // new
       },
       keyframes: {
         breathing: {
@@ -20,6 +21,10 @@ export default {
         'glow-gold': {
           '0%, 100%': { boxShadow: '0 0 10px 3px rgba(255,215,0,0.7)' },
           '50%': { boxShadow: '0 0 30px 10px rgba(255,215,0,1)' },
+        },
+        'gradient-xy': {
+          '0%, 100%': { 'background-position': '0% 50%' },
+          '50%': { 'background-position': '100% 50%' },
         },
       },
     },
