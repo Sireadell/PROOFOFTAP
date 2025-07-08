@@ -2,7 +2,7 @@ import React from 'react';
 
 const loreText = `
 Proof of Tap is your daily on-chain reputation builder.
-Each tap shows up in the blockchain,
+Each tap is recorded on the blockchain,
 reflecting your dedication, streaks, and earned rewards.
 
 Stay consistent, earn badges, and share your achievements with the world.

@@ -1,5 +1,6 @@
 import React from 'react';
 import { useTapGem } from '@/hooks/useTapGem';
+import { toast } from 'react-toastify';
 import CountdownTimer from '@/components/CountdownTimer';
 import StreakProgress from '@/components/StreakProgress';
 import LoreScroller from '@/components/LoreScroller';
@@ -9,7 +10,14 @@ import SocialShare from '@/components/SocialShare';
 export default function TapPage() {
   const { userStats, loading, claiming, tap, claimReward } = useTapGem();
   const MAX_TAPS_PER_DAY = 20;
-  const showClaimButton = userStats.tapsToday >= MAX_TAPS_PER_DAY;
+
+  // Wrapper to call tap and show earned amount toast
+  const handleTap = async () => {
+    const earned = await tap();
+    if (earned) {
+      showToastOnce(toast.success, `Tap successful! You earned ${earned} STT`);
+    }
+  };
 
   return (
     <div className="flex flex-grow gap-8 p-8 bg-black bg-opacity-60 backdrop-blur-md rounded-xl shadow-xl w-full">
@@ -34,35 +42,58 @@ export default function TapPage() {
         <CountdownTimer />
       </aside>
 
-      {/* Middle Tap Button */}
-      <section className="flex flex-col items-center justify-center flex-1 space-y-8">
-        {showClaimButton ? (
-          <ClaimRewardButton onClick={claimReward} disabled={claiming} />
-        ) : (
-          <button
-            onClick={tap}
-            disabled={loading}
-            aria-label="Tap the gem"
-            className="relative w-64 h-64 rounded-full bg-gradient-to-br from-purple-700 to-pink-600 shadow-2xl hover:shadow-pink-600 hover:scale-110 transition-transform animate-breathing flex items-center justify-center"
-          >
-            {/* Bigger Gem SVG */}
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth={1.5}
-              stroke="white"
-              className="w-56 h-56 opacity-70"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 2L6 8l6 14 6-14-6-6z" />
-            </svg>
+      {/* Middle Tap Button and Claim Button */}
+      <section className="flex flex-col items-center justify-center flex-1 space-y-6">
+               
+       {/* Tap Button */}
+<button
+  onClick={handleTap}
+  disabled={loading || userStats.tapsToday >= MAX_TAPS_PER_DAY}
+  aria-label="Tap the gem"
+  className={`relative w-64 h-64 rounded-full shadow-2xl flex items-center justify-center transition-transform
+    ${
+      userStats.tapsToday >= MAX_TAPS_PER_DAY
+        ? 'bg-gray-600 cursor-not-allowed opacity-50 shadow-inner'
+        : 'bg-gradient-to-br from-purple-700 to-pink-600 hover:shadow-pink-600 hover:scale-110 animate-breathing'
+    }
+  `}
+>
+  {loading ? (
+ <div className="relative w-24 h-24">
+  <div className="absolute inset-0 rounded-full bg-purple-400 opacity-30 animate-ping"></div>
+  <div className="absolute inset-0 rounded-full bg-purple-500 opacity-80 flex items-center justify-center shadow-lg">
+    <span className="text-white font-semibold animate-pulse">Tapping...</span>
+  </div>
+</div>
 
-            {/* "Tap" text centered inside the gem */}
-            <span className="absolute text-white text-2xl font-extrabold select-none pointer-events-none">
-              Tap
-            </span>
-          </button>
-        )}
+  ) : (
+    <>
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        fill="none"
+        viewBox="0 0 24 24"
+        strokeWidth={1.5}
+        stroke="white"
+        className="w-56 h-56 opacity-70"
+      >
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 2L6 8l6 14 6-14-6-6z" />
+      </svg>
+      <span className="absolute text-white text-2xl font-extrabold select-none pointer-events-none">
+        Tap
+      </span>
+    </>
+  )}
+</button>
+
+
+        {/* Claim Reward Button */}
+        <ClaimRewardButton
+  onClick={claimReward}
+  disabled={claiming || parseFloat(userStats.unclaimedRewards) === 0}
+  amount={userStats.unclaimedRewards}
+  className="mt-6 w-48"
+/>
+
       </section>
 
       {/* Right Lore and Social Share */}
