@@ -1,4 +1,5 @@
-require("dotenv").config();
+require('dotenv').config({ path: '../../.env' });
+
 const { ethers } = require("ethers");
 
 // Paste the ABI of your TapGem contract here
@@ -8,7 +9,14 @@ const abi = [
   "function getUserStats(address user) external view returns (uint256 tapsToday, uint256 currentStreak, uint256 points, uint256 totalRewardClaimed)"
 ];
 
+// Helper sleep function
+const sleep = ms => new Promise(res => setTimeout(res, ms));
+
 async function main() {
+  if (!process.env.SOMNIA_RPC_URL || !process.env.PRIVATE_KEY || !process.env.TAPGEM_CONTRACT_ADDRESS) {
+    throw new Error("Missing required environment variables: SOMNIA_RPC_URL, PRIVATE_KEY, or TAPGEM_CONTRACT_ADDRESS");
+  }
+
   const provider = new ethers.providers.JsonRpcProvider(process.env.SOMNIA_RPC_URL);
   const wallet = new ethers.Wallet(process.env.PRIVATE_KEY, provider);
 
@@ -22,14 +30,21 @@ async function main() {
       await tx.wait();
       tapsDone++;
       console.log(`Tap ${i} succeeded.`);
+      await sleep(500); // optional delay
     } catch (error) {
-      // If revert due to max taps reached, stop and notify
-      if (error.error && error.error.message.includes("max taps reached")) {
+      // Attempt to find revert message
+      const message = 
+        error?.error?.message || 
+        error?.data?.message || 
+        error?.message || 
+        "Unknown error";
+
+      if (message.toLowerCase().includes("max taps reached")) {
         console.log(`Tap limit reached at tap number ${tapsDone}. Stopping.`);
         break;
       }
-      // Other errors
-      console.error(`Error on tap ${i}:`, error.message || error);
+
+      console.error(`Error on tap ${i}:`, message);
       break;
     }
   }
