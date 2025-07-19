@@ -1,33 +1,94 @@
-import React, { useState } from 'react';
+import React, { useState, useContext } from 'react';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-
-import { WalletProvider } from '@/contexts/WalletContext';
+import { WalletProvider, WalletContext } from '@/contexts/WalletContext';
 import TapPage from '@/pages/TapPage';
 import LeaderboardPage from '@/pages/LeaderboardPage';
-import RulesPage from '@/pages/RulesPage';  // Import Rules page
-
+import RulesPage from '@/pages/RulesPage';
 import WalletConnect from '@/components/WalletConnect';
 import { Twitter, Orbit, Trophy, Circle, Book } from 'lucide-react';
+import { toast } from 'react-toastify';
 
 export default function App() {
   const [page, setPage] = useState('tap');
+  const { account, connectWallet } = useContext(WalletContext);
+  const [isButtonLoading, setIsButtonLoading] = useState(() => {
+    return localStorage.getItem('isButtonLoading') === 'true';
+  });
+
+  const handleConnectWallet = async () => {
+    if (connectWallet) {
+      try {
+        setIsButtonLoading(true);
+        localStorage.setItem('isButtonLoading', 'true');
+        await connectWallet();
+        setIsButtonLoading(false);
+        localStorage.setItem('isButtonLoading', 'false');
+      } catch (error) {
+        console.error('Wallet connection failed:', error);
+                setIsButtonLoading(false);
+        localStorage.setItem('isButtonLoading', 'false');
+      }
+    } else {
+      toast.error('Proof Of Tap verification unavailable.');
+    }
+  };
 
   return (
     <WalletProvider>
       <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-black text-white flex flex-col items-center overflow-x-hidden">
-        <Header page={page} setPage={setPage} />
-
-        <main className="flex-grow w-full max-w-6xl px-4 py-6">
-          {page === 'tap' && <TapPage />}
-          {page === 'leaderboard' && <LeaderboardPage />}
-          {page === 'rules' && <RulesPage />}
-        </main>
-
-        <Footer />
+        {!account ? (
+          <WelcomeScreen onConnect={handleConnectWallet} isButtonLoading={isButtonLoading} />
+        ) : (
+          <>
+            <Header page={page} setPage={setPage} />
+            <main className="flex-grow w-full max-w-6xl px-4 py-6">
+              {page === 'tap' && <TapPage />}
+              {page === 'leaderboard' && <LeaderboardPage />}
+              {page === 'rules' && <RulesPage />}
+            </main>
+            <Footer />
+          </>
+        )}
       </div>
       <ToastContainer position="bottom-right" autoClose={6000} />
     </WalletProvider>
+  );
+}
+
+function WelcomeScreen({ onConnect, isButtonLoading }) {
+  return (
+    <div className="min-h-screen flex items-center justify-center p-4">
+      <div className="bg-black/30 backdrop-blur-md rounded-xl shadow-lg p-8 text-center max-w-lg border border-purple-700">
+        <h1 className="text-4xl font-extrabold text-white drop-shadow-lg mb-4">
+          Welcome to Proof of Tap 🪙
+        </h1>
+        <p className="text-lg text-gray-300 mb-6">
+          Build your on-chain reputation by tapping daily on the Somnia Network. Join the community, climb the leaderboard, and show your dedication!
+        </p>
+        <button
+          onClick={onConnect}
+          disabled={isButtonLoading}
+          className={`bg-gradient-to-br from-purple-700 to-pink-600 px-6 py-3 rounded-lg text-lg font-semibold hover:shadow-pink-600 hover:scale-105 transition-transform mb-4 ${
+            isButtonLoading ? 'opacity-50 cursor-not-allowed' : ''
+          }`}
+        >
+          {isButtonLoading ? 'Syncing with Somnia...' : 'Enter Proof Of Tap'}
+        </button>
+        <p className="text-sm text-gray-400">
+          Follow{' '}
+          <a
+            href="https://x.com/sireadell"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-purple-400 underline inline-flex items-center gap-1"
+          >
+            <Twitter size={16} /> @sireadell
+          </a>{' '}
+          for updates, tips, and community news!
+        </p>
+      </div>
+    </div>
   );
 }
 
@@ -40,7 +101,6 @@ function Header({ page, setPage }) {
       <p className="mt-2 text-lg text-gray-300 max-w-md mx-auto">
         Build your on-chain reputation by showing up daily
       </p>
-
       <nav className="mt-6 flex justify-center gap-6 flex-wrap">
         <NavButton
           active={page === 'tap'}
@@ -61,7 +121,6 @@ function Header({ page, setPage }) {
           label="Rules"
         />
       </nav>
-
       <div className="absolute top-6 right-6 flex items-center space-x-4">
         <WalletConnect />
       </div>
