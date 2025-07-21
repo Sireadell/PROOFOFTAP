@@ -12,15 +12,16 @@ export default function TapPage() {
   const { userStats, loading, claiming, tap, claimReward } = useTapGem();
   const { account, connectWallet } = useContext(WalletContext);
   const MAX_TAPS_PER_DAY = 20;
-  const [showFollowPopup, setShowFollowPopup] = useState(false);
+  const [showPopup, setShowPopup] = useState(false);
   const [hasClickedFollow, setHasClickedFollow] = useState(() => {
-    return sessionStorage.getItem('hasClickedFollow') === 'true'; // Reintroduced sessionStorage
+    return sessionStorage.getItem('hasClickedFollow') === 'true';
   });
   const [hasInteractedWithTweet, setHasInteractedWithTweet] = useState(() => {
-    return sessionStorage.getItem('hasInteractedWithTweet') === 'true'; // Reintroduced sessionStorage
+    return sessionStorage.getItem('hasInteractedWithTweet') === 'true';
   });
   const [timer, setTimer] = useState(15); // 15-second verification timer
-  const [checkStage, setCheckStage] = useState('initial');
+  const [checkStage, setCheckStage] = useState('follow'); // Stages: follow, tweet
+  const [decoyDelay, setDecoyDelay] = useState(0); // Decoy delay for verification
 
   const getRank = (points) => {
     if (points >= 501) return 'Master Tapper';
@@ -42,9 +43,10 @@ export default function TapPage() {
       return;
     }
     if (!hasClickedFollow || !hasInteractedWithTweet) {
-      setShowFollowPopup(true);
+      setShowPopup(true);
       setTimer(15);
-      setCheckStage('initial');
+      setCheckStage('follow');
+      setDecoyDelay(5); // Initial decoy delay
       return;
     }
     const earned = await tap();
@@ -55,46 +57,61 @@ export default function TapPage() {
 
   const handleFollowClick = () => {
     setHasClickedFollow(true);
-    sessionStorage.setItem('hasClickedFollow', 'true'); // Reintroduced sessionStorage
+    sessionStorage.setItem('hasClickedFollow', 'true');
     window.open('https://x.com/sireadell', '_blank');
     toast.info('Please follow @sireadell to proceed!');
   };
 
   const handleTweetInteractionClick = () => {
     setHasInteractedWithTweet(true);
-    sessionStorage.setItem('hasInteractedWithTweet', 'true'); // Reintroduced sessionStorage
+    sessionStorage.setItem('hasInteractedWithTweet', 'true');
     window.open('https://x.com/Sireadell/status/1947202431168790749', '_blank');
-    toast.info('Please like and vote your streak on this 200K milestone tweet!');
+    toast.info('Please like and retweet the 200K milestone tweet!');
   };
 
-  const handleConfirmFollow = () => {
-    if (checkStage === 'initial' && hasClickedFollow && !hasInteractedWithTweet) {
-      setCheckStage('tweetInteraction');
+  const handleConfirmAction = () => {
+    if (checkStage === 'follow' && hasClickedFollow) {
+      setCheckStage('tweet');
       setTimer(15);
-      toast.info('Now, please like and vote your streak on the 200K tweet!');
-    } else if (checkStage === 'tweetInteraction' && hasInteractedWithTweet) {
-      setShowFollowPopup(false);
-      toast.success('Follow, like, and vote verified! Start tapping!');
+      toast.info('Now, please like and retweet the 200K milestone tweet!');
+    } else if (checkStage === 'tweet' && hasInteractedWithTweet) {
+      // Apply decoy delay to simulate verification
+      setTimeout(() => {
+        setShowPopup(false);
+        toast.success('Follow, like, and retweet verified! Start tapping!');
+      }, decoyDelay * 1000);
+    } else {
+      // Increase decoy delay if user tries to bypass
+      setDecoyDelay((prev) => prev + 5);
+      toast.warn(`Please complete the ${checkStage} action first! Verification delayed.`);
     }
   };
 
   useEffect(() => {
-    if (showFollowPopup && timer > 0) {
+    if (showPopup && timer > 0) {
       const interval = setInterval(() => {
         setTimer((prev) => prev - 1);
       }, 1000);
       return () => clearInterval(interval);
-    } else if (showFollowPopup && timer === 0) {
-      if (checkStage === 'initial' && hasClickedFollow) {
-        setCheckStage('tweetInteraction');
+    } else if (showPopup && timer === 0) {
+      if (checkStage === 'follow' && hasClickedFollow) {
+        setCheckStage('tweet');
         setTimer(15);
-        toast.info('Please like and vote your streak on the 200K tweet now!');
-      } else if (checkStage === 'tweetInteraction' && hasInteractedWithTweet) {
-        setShowFollowPopup(false);
-        toast.success('Follow, like, and vote verified! Start tapping!');
+        toast.info('Please like and retweet the 200K milestone tweet now!');
+      } else if (checkStage === 'tweet' && hasInteractedWithTweet) {
+        // Apply decoy delay before closing popup
+        setTimeout(() => {
+          setShowPopup(false);
+          toast.success('Follow, like, and retweet verified! Start tapping!');
+        }, decoyDelay * 1000);
+      } else {
+        // Reset timer and increase decoy delay for incomplete actions
+        setTimer(15);
+        setDecoyDelay((prev) => prev + 5);
+        toast.warn(`Please complete the ${checkStage} action! Verification delayed.`);
       }
     }
-  }, [showFollowPopup, timer, checkStage, hasClickedFollow, hasInteractedWithTweet]);
+  }, [showPopup, timer, checkStage, hasClickedFollow, hasInteractedWithTweet, decoyDelay]);
 
   return (
     <div className="flex flex-grow gap-8 p-8 bg-black bg-opacity-60 backdrop-blur-md rounded-xl shadow-xl w-full">
@@ -121,11 +138,11 @@ export default function TapPage() {
       <section className="flex flex-col items-center justify-center flex-1 space-y-6">
         <button
           onClick={handleTap}
-          disabled={loading || userStats.tapsToday >= MAX_TAPS_PER_DAY || showFollowPopup}
+          disabled={loading || userStats.tapsToday >= MAX_TAPS_PER_DAY || showPopup}
           aria-label="Tap the gem"
           className={`relative w-64 h-64 rounded-full shadow-2xl flex items-center justify-center transition-transform
             ${
-              loading || userStats.tapsToday >= MAX_TAPS_PER_DAY || showFollowPopup
+              loading || userStats.tapsToday >= MAX_TAPS_PER_DAY || showPopup
                 ? 'bg-gray-600 cursor-not-allowed opacity-50 shadow-inner'
                 : 'bg-gradient-to-br from-purple-700 to-pink-600 hover:shadow-pink-600 hover:scale-110 animate-breathing'
             }
@@ -173,29 +190,14 @@ export default function TapPage() {
         </div>
       </aside>
 
-      {showFollowPopup && (
+      {showPopup && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-gray-800 p-6 rounded-xl shadow-lg text-center max-w-sm">
             <h2 className="text-2xl font-bold mb-4">Join the 200K Tap Party!</h2>
             <p className="mb-4">
-              {hasClickedFollow && !hasInteractedWithTweet ? (
+              {checkStage === 'follow' ? (
                 <>
-                  Now, celebrate our 200K milestone by liking and voting your streak on this tweet:{' '}
-                  <a
-                    href="https://x.com/Sireadell/status/1947202431168790749"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-purple-400 underline"
-                    onClick={handleTweetInteractionClick}
-                  >
-                    200K Milestone Vote
-                  </a>
-                </>
-              ) : hasClickedFollow ? (
-                <>Confirming you followed @sireadell and voted on the 200K milestone...</>
-              ) : (
-                <>
-                  Celebrate our 200K milestone by following{' '}
+                  To start tapping, follow{' '}
                   <a
                     href="https://x.com/sireadell"
                     target="_blank"
@@ -204,8 +206,12 @@ export default function TapPage() {
                     onClick={handleFollowClick}
                   >
                     @sireadell
-                  </a>{' '}
-                  and liking/voting your streak on this tweet:{' '}
+                  </a>
+                  .
+                </>
+              ) : (
+                <>
+                  Now, like and retweet the{' '}
                   <a
                     href="https://x.com/Sireadell/status/1947202431168790749"
                     target="_blank"
@@ -213,40 +219,37 @@ export default function TapPage() {
                     className="text-purple-400 underline"
                     onClick={handleTweetInteractionClick}
                   >
-                    200K Milestone Vote
+                    200K milestone tweet
                   </a>
-                  !
+                  .
                 </>
               )}
             </p>
-            {hasClickedFollow && (
-              <div className="mb-4 w-8 h-8 mx-auto animate-spin">
+            <div className="mb-4">
+              <p>Verification in progress... {timer}s remaining</p>
+              <div className="w-8 h-8 mx-auto animate-spin">
                 <div className="w-full h-full rounded-full border-4 border-t-transparent border-gradient-to-r from-purple-700 to-pink-600"></div>
               </div>
-            )}
-            {checkStage === 'tweetInteraction' && (
-              <button
-                onClick={handleConfirmFollow}
-                className="bg-purple-600 px-4 py-2 rounded-lg mr-2"
-              >
-                I’ve Followed & Voted
-              </button>
-            )}
-            {checkStage === 'initial' && (
-              <button
-                onClick={handleFollowClick}
-                className="bg-purple-600 px-4 py-2 rounded-lg mr-2"
-              >
-                Follow @sireadell
-              </button>
-            )}
+            </div>
             <button
-              onClick={() => setShowFollowPopup(false)}
-              className="bg-gray-600 px-4 py-2 rounded-lg"
-              disabled={timer > 0 && checkStage !== 'tweetInteraction'}
+              onClick={handleConfirmAction}
+              className="bg-purple-600 px-4 py-2 rounded-lg mr-2"
+              disabled={timer > 0}
             >
-              {timer > 0 && checkStage === 'tweetInteraction' ? 'Wait' : 'Close'}
+              {checkStage === 'follow' ? 'I’ve Followed' : 'I’ve Liked & Retweeted'}
             </button>
+            <button
+              onClick={() => setShowPopup(false)}
+              className="bg-gray-600 px-4 py-2 rounded-lg"
+              disabled={timer > 0 || decoyDelay > 0}
+            >
+              Close
+            </button>
+            {decoyDelay > 0 && (
+              <p className="mt-2 text-sm text-yellow-400">
+                Extended verification due to incomplete actions: {decoyDelay}s
+              </p>
+            )}
           </div>
         </div>
       )}
