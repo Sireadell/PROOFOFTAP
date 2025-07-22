@@ -77,12 +77,12 @@ export default function TapPage() {
   const handleTweetInteractionClick = () => {
     setHasInteractedWithTweet(true);
     sessionStorage.setItem('hasInteractedWithTweet', 'true');
-    window.open('https://x.com/Sireadell/status/1947369821181530579', '_blank');
+    window.open('https://x.com/Sireadell/status/1942579094937362539', '_blank');
     toast.info('Like & comment on the tweet, then paste your comment URL!');
   };
 
   const validateTweetUrl = (url) => {
-    const regex = /^https:\/\/x\.com\/Sireadell\/status\/1947369821181530579\/.*$/;
+    const regex = /^https:\/\/x\.com\/Sireadell\/status\/\/.*$/;
     return regex.test(url) || url === '';
   };
 
@@ -90,10 +90,10 @@ export default function TapPage() {
     if (stage === 'follow' && hasClickedFollow) {
       setStage('tweet');
       setTimer(10);
-      toast.info('Now like & comment on the educative tweet!');
+      toast.info('Now like & comment on the tweet!');
     } else if (stage === 'tweet' && hasInteractedWithTweet) {
       if (!tweetUrl) {
-        toast.warn('Please paste a tweet URL!');
+        toast.warn('Please paste your tweet URL!');
         return;
       }
       setStage('captcha');
@@ -232,7 +232,7 @@ export default function TapPage() {
                   </p>
                   <input
                     type="url"
-                    placeholder="Paste your comment URL"
+                    placeholder="Paste your comment URL here"
                     value={tweetUrl}
                     onChange={(e) => setTweetUrl(e.target.value)}
                     className="w-full px-3 py-2 text-sm rounded bg-gray-700 border border-gray-600 text-white focus:outline-none focus:border-purple-500"
