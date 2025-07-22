@@ -12,16 +12,23 @@ export default function TapPage() {
   const { userStats, loading, claiming, tap, claimReward } = useTapGem();
   const { account, connectWallet } = useContext(WalletContext);
   const MAX_TAPS_PER_DAY = 20;
+
   const [showPopup, setShowPopup] = useState(false);
-  const [hasClickedFollow, setHasClickedFollow] = useState(() => {
-    return sessionStorage.getItem('hasClickedFollow') === 'true';
-  });
-  const [hasInteractedWithTweet, setHasInteractedWithTweet] = useState(() => {
-    return sessionStorage.getItem('hasInteractedWithTweet') === 'true';
-  });
-  const [timer, setTimer] = useState(15); // 15-second verification timer
-  const [checkStage, setCheckStage] = useState('follow'); // Stages: follow, tweet
-  const [decoyDelay, setDecoyDelay] = useState(0); // Decoy delay for verification
+  const [stage, setStage] = useState('follow'); // follow -> tweet -> captcha
+  const [hasClickedFollow, setHasClickedFollow] = useState(() => sessionStorage.getItem('hasClickedFollow') === 'true');
+  const [hasInteractedWithTweet, setHasInteractedWithTweet] = useState(() => sessionStorage.getItem('hasInteractedWithTweet') === 'true');
+  const [isVerified, setIsVerified] = useState(() => sessionStorage.getItem('isVerified') === 'true'); // New state for verification
+  const [tweetUrl, setTweetUrl] = useState('');
+  const [timer, setTimer] = useState(10);
+  const [decoyDelay, setDecoyDelay] = useState(0);
+  const [captchaAnswer, setCaptchaAnswer] = useState('');
+  const [captchaQuestion, setCaptchaQuestion] = useState(generateCaptcha());
+
+  function generateCaptcha() {
+    const num1 = Math.floor(Math.random() * 10);
+    const num2 = Math.floor(Math.random() * 10);
+    return { question: `${num1} + ${num2} = ?`, answer: num1 + num2 };
+  }
 
   const getRank = (points) => {
     if (points >= 501) return 'Master Tapper';
@@ -31,27 +38,32 @@ export default function TapPage() {
 
   const handleTap = async () => {
     if (!account) {
-      toast.error('Please connect your wallet first.');
-      if (connectWallet) {
-        try {
-          await connectWallet();
-        } catch (error) {
-          console.error('Wallet connection failed:', error);
-          toast.error('Failed to connect wallet.');
-        }
+      toast.error('Connect your wallet to start tapping!');
+      try {
+        await connectWallet();
+      } catch (error) {
+        console.error('Wallet connection failed:', error);
+        toast.error('Wallet connection failed. Try again.');
       }
       return;
     }
-    if (!hasClickedFollow || !hasInteractedWithTweet) {
+
+    if (!isVerified) {
       setShowPopup(true);
-      setTimer(15);
-      setCheckStage('follow');
-      setDecoyDelay(5); // Initial decoy delay
+      setStage('follow');
+      setTimer(10);
+      setDecoyDelay(3);
       return;
     }
-    const earned = await tap();
-    if (earned) {
-      toast.success(`Tap successful! You earned ${earned} STT`);
+
+    try {
+      const earned = await tap();
+      if (earned) {
+        toast.success(`Tap successful! Earned ${earned} STT`);
+      }
+    } catch (error) {
+      console.error('Tap error:', error);
+      toast.error('Tap failed. Please try again.');
     }
   };
 
@@ -59,77 +71,72 @@ export default function TapPage() {
     setHasClickedFollow(true);
     sessionStorage.setItem('hasClickedFollow', 'true');
     window.open('https://x.com/sireadell', '_blank');
-    toast.info('Please follow @sireadell to proceed!');
+    toast.info('Followed @sireadell? Awesome, let’s keep going!');
   };
 
   const handleTweetInteractionClick = () => {
     setHasInteractedWithTweet(true);
     sessionStorage.setItem('hasInteractedWithTweet', 'true');
     window.open('https://x.com/Sireadell/status/1947369821181530579', '_blank');
-    toast.info('Please like/RT and comment on the Educative Tweet!');
+    toast.info('Like & comment on the tweet, then paste your comment URL!');
   };
 
-  const handleConfirmAction = () => {
-    if (checkStage === 'follow' && hasClickedFollow) {
-      setCheckStage('tweet');
-      setTimer(15);
-      toast.info('Now, please like and comment on the educative tweet!');
-    } else if (checkStage === 'tweet' && hasInteractedWithTweet) {
-      // Apply decoy delay to simulate verification
+  const validateTweetUrl = (url) => {
+    const regex = /^https:\/\/x\.com\/Sireadell\/status\/1947369821181530579\/.*$/;
+    return regex.test(url) || url === '';
+  };
+
+  const handleNextStage = () => {
+    if (stage === 'follow' && hasClickedFollow) {
+      setStage('tweet');
+      setTimer(10);
+      toast.info('Now like & comment on the educative tweet!');
+    } else if (stage === 'tweet' && hasInteractedWithTweet) {
+      if (!tweetUrl) {
+        toast.warn('Please paste a tweet URL!');
+        return;
+      }
+      setStage('captcha');
+      setTimer(10);
+      toast.info('Prove you’re not a bot with this quick math!');
+    } else if (stage === 'captcha' && parseInt(captchaAnswer) === captchaQuestion.answer) {
       setTimeout(() => {
+        setIsVerified(true);
+        sessionStorage.setItem('isVerified', 'true');
         setShowPopup(false);
-        toast.success('Follow, like, and comment verified! Start tapping!');
+        toast.success('Verified! Start tapping!');
       }, decoyDelay * 1000);
     } else {
-      // Increase decoy delay if user tries to bypass
-      setDecoyDelay((prev) => prev + 5);
-      toast.warn(`Please complete the ${checkStage} action first! Verification delayed.`);
+      setDecoyDelay((prev) => prev + 3);
+      toast.warn(`Complete the ${stage} step first! Delayed by ${decoyDelay + 3}s.`);
     }
   };
 
   useEffect(() => {
-    if (showPopup && timer > 0) {
-      const interval = setInterval(() => {
-        setTimer((prev) => prev - 1);
-      }, 1000);
-      return () => clearInterval(interval);
-    } else if (showPopup && timer === 0) {
-      if (checkStage === 'follow' && hasClickedFollow) {
-        setCheckStage('tweet');
-        setTimer(15);
-        toast.info('Please like and comment on the educative tweet now!');
-      } else if (checkStage === 'tweet' && hasInteractedWithTweet) {
-        // Apply decoy delay before closing popup
-        setTimeout(() => {
-          setShowPopup(false);
-          toast.success('Follow, like, and comment verified! Start tapping!');
-        }, decoyDelay * 1000);
-      } else {
-        // Reset timer and increase decoy delay for incomplete actions
-        setTimer(15);
-        setDecoyDelay((prev) => prev + 5);
-        toast.warn(`Please complete the ${checkStage} action! Verification delayed.`);
-      }
-    }
-  }, [showPopup, timer, checkStage, hasClickedFollow, hasInteractedWithTweet, decoyDelay]);
+    if (!showPopup || timer === 0) return;
+
+    const interval = setInterval(() => {
+      setTimer((prev) => {
+        if (prev <= 1) {
+          handleNextStage();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [showPopup, timer, stage, hasClickedFollow, hasInteractedWithTweet, captchaAnswer, decoyDelay]);
 
   return (
-    <div className="flex flex-grow gap-8 p-8 bg-black bg-opacity-60 backdrop-blur-md rounded-xl shadow-xl w-full">
+    <div className="flex flex-grow gap-8 p-8 bg-black/60 backdrop-blur-md rounded-xl shadow-xl w-full">
       <aside className="w-full md:w-72 bg-gray-900 rounded-lg p-6 flex flex-col gap-6 select-none shadow-md">
-        <button className="text-sm text-gray-400 hover:text-white mb-4 self-start font-semibold">
-          ◄ Fold
-        </button>
+        <button className="text-sm text-gray-400 hover:text-white mb-4 self-start font-semibold">◄ Fold</button>
         <div>
           <h2 className="font-semibold text-2xl mb-4">Stats</h2>
-          <p className="text-lg">
-            Taps today: <span className="font-mono">{userStats.tapsToday}</span>
-          </p>
-          <p className="text-lg">
-            Current streak: <span className="font-mono">{userStats.currentStreak}</span>
-          </p>
-          <p className="text-lg">
-            Points: <span className="font-mono">{userStats.points}</span>
-          </p>
+          <p className="text-lg">Taps today: <span className="font-mono">{userStats.tapsToday}</span></p>
+          <p className="text-lg">Current streak: <span className="font-mono">{userStats.currentStreak}</span></p>
+          <p className="text-lg">Points: <span className="font-mono">{userStats.points}</span></p>
         </div>
         <StreakProgress currentStreak={userStats.currentStreak} />
         <CountdownTimer />
@@ -139,19 +146,16 @@ export default function TapPage() {
         <button
           onClick={handleTap}
           disabled={loading || userStats.tapsToday >= MAX_TAPS_PER_DAY || showPopup}
-          aria-label="Tap the gem"
           className={`relative w-64 h-64 rounded-full shadow-2xl flex items-center justify-center transition-transform
-            ${
-              loading || userStats.tapsToday >= MAX_TAPS_PER_DAY || showPopup
-                ? 'bg-gray-600 cursor-not-allowed opacity-50 shadow-inner'
-                : 'bg-gradient-to-br from-purple-700 to-pink-600 hover:shadow-pink-600 hover:scale-110 animate-breathing'
-            }
-          `}
+            ${loading || userStats.tapsToday >= MAX_TAPS_PER_DAY || showPopup
+              ? 'bg-gray-600 cursor-not-allowed opacity-50 shadow-inner'
+              : 'bg-gradient-to-br from-purple-700 to-pink-600 hover:shadow-pink-600 hover:scale-110 animate-pulse'
+            }`}
         >
           {loading ? (
             <div className="relative w-24 h-24">
-              <div className="absolute inset-0 rounded-full bg-purple-400 opacity-30 animate-ping"></div>
-              <div className="absolute inset-0 rounded-full bg-purple-500 opacity-80 flex items-center justify-center shadow-lg">
+              <div className="absolute inset-0 rounded-full bg-purple-400/30 animate-ping"></div>
+              <div className="absolute inset-0 rounded-full bg-purple-500/80 flex items-center justify-center shadow-lg">
                 <span className="text-white font-semibold animate-pulse">Tapping...</span>
               </div>
             </div>
@@ -167,13 +171,10 @@ export default function TapPage() {
               >
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 2L6 8l6 14 6-14-6-6z" />
               </svg>
-              <span className="absolute text-white text-2xl font-extrabold select-none pointer-events-none">
-                Tap
-              </span>
+              <span className="absolute text-white text-2xl font-extrabold select-none">Tap</span>
             </>
           )}
         </button>
-
         <ClaimRewardButton
           onClick={claimReward}
           disabled={claiming || parseFloat(userStats.unclaimedRewards) === 0}
@@ -192,63 +193,91 @@ export default function TapPage() {
 
       {showPopup && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-gray-800 p-6 rounded-xl shadow-lg text-center max-w-sm">
-            <h2 className="text-2xl font-bold mb-4">Join the Tap & Learn Party!</h2>
-            <p className="mb-4">
-              {checkStage === 'follow' ? (
-                <>
-                  To start tapping, follow{' '}
+          <div className="bg-gray-800 p-6 rounded-xl shadow-lg text-center max-w-sm w-full">
+            <h2 className="text-2xl font-bold mb-4 text-white">Join the Tap & Learn Party!</h2>
+            <div className="flex justify-between text-sm mb-4 text-gray-400">
+              <span className={stage === 'follow' ? 'text-purple-400 font-bold' : 'text-gray-500'}>1. Follow</span>
+              <span className={stage === 'tweet' ? 'text-purple-400 font-bold' : 'text-gray-500'}>2.Like | RT | Comment</span>
+              <span className={stage === 'captcha' ? 'text-purple-400 font-bold' : 'text-gray-500'}>3. Verify</span>
+            </div>
+            <div className="mb-4">
+              {stage === 'follow' ? (
+                <p className="text-gray-200">
+                  Follow{' '}
                   <a
                     href="https://x.com/sireadell"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-purple-400 underline"
+                    className="text-purple-400 underline hover:text-purple-300"
                     onClick={handleFollowClick}
                   >
                     @sireadell
-                  </a>
-                  .
-                </>
+                  </a>{' '}
+                  to unlock tapping.
+                </p>
+              ) : stage === 'tweet' ? (
+                <div>
+                  <p className="text-gray-200 mb-2">
+                    Like | RT & Comment on the{' '}
+                    <a
+                      href="https://x.com/Sireadell/status/1942579094937362539"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-purple-400 underline hover:text-purple-300"
+                      onClick={handleTweetInteractionClick}
+                    >
+                      Tweet
+                    </a>{' '}
+                    and paste your comment URL below.
+                  </p>
+                  <input
+                    type="url"
+                    placeholder="Paste your comment URL"
+                    value={tweetUrl}
+                    onChange={(e) => setTweetUrl(e.target.value)}
+                    className="w-full px-3 py-2 text-sm rounded bg-gray-700 border border-gray-600 text-white focus:outline-none focus:border-purple-500"
+                  />
+                </div>
               ) : (
-                <>
-                  Like and comment on the{' '}
-                  <a
-                    href="https://x.com/Sireadell/status/1947369821181530579"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-purple-400 underline"
-                    onClick={handleTweetInteractionClick}
-                  >
-                    educative tweet
-                  </a>
-                  {' '}to share your Web3 insights!
-                </>
+                <div>
+                  <p className="text-gray-200 mb-2">Prove you’re not a bot: {captchaQuestion.question}</p>
+                  <input
+                    type="number"
+                    placeholder="Enter answer"
+                    value={captchaAnswer}
+                    onChange={(e) => setCaptchaAnswer(e.target.value)}
+                    className="w-full px-3 py-2 text-sm rounded bg-gray-700 border border-gray-600 text-white focus:outline-none focus:border-purple-500"
+                  />
+                </div>
               )}
-            </p>
+            </div>
             <div className="mb-4">
-              <p>Verification in progress... {timer}s remaining</p>
-              <div className="w-8 h-8 mx-auto animate-spin">
-                <div className="w-full h-full rounded-full border-4 border-t-transparent border-gradient-to-r from-purple-700 to-pink-600"></div>
+              <p className="text-gray-400">Verification in {timer}s</p>
+              <div className="w-full h-2 bg-gray-700 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-purple-600 transition-all duration-1000"
+                  style={{ width: `${(timer / 10) * 100}%` }}
+                ></div>
               </div>
             </div>
-            <button
-              onClick={handleConfirmAction}
-              className="bg-purple-600 px-4 py-2 rounded-lg mr-2"
-              disabled={timer > 0}
-            >
-              {checkStage === 'follow' ? 'I’ve Followed' : 'I’ve Liked & Commented'}
-            </button>
-            <button
-              onClick={() => setShowPopup(false)}
-              className="bg-gray-600 px-4 py-2 rounded-lg"
-              disabled={timer > 0 || decoyDelay > 0}
-            >
-              Close
-            </button>
+            <div className="flex justify-center gap-2">
+              <button
+                onClick={handleNextStage}
+                disabled={timer > 0}
+                className="bg-purple-600 px-4 py-2 rounded-lg text-white hover:bg-purple-700 disabled:bg-gray-500 disabled:cursor-not-allowed"
+              >
+                {stage === 'follow' ? 'I’ve Followed' : stage === 'tweet' ? 'I’ve Commented' : 'Verify Humanity'}
+              </button>
+              <button
+                onClick={() => setShowPopup(false)}
+                disabled={timer > 0 || decoyDelay > 0}
+                className="bg-gray-600 px-4 py-2 rounded-lg text-white hover:bg-gray-700 disabled:bg-gray-500 disabled:cursor-not-allowed"
+              >
+                Close
+              </button>
+            </div>
             {decoyDelay > 0 && (
-              <p className="mt-2 text-sm text-yellow-400">
-                Extended verification due to incomplete actions: {decoyDelay}s
-              </p>
+              <p className="mt-2 text-sm text-yellow-400">Verification delayed by {decoyDelay}s due to incomplete steps.</p>
             )}
           </div>
         </div>
