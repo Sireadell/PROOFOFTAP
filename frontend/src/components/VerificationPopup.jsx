@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 
 export default function VerificationPopup({
   showPopup,
@@ -13,6 +13,45 @@ export default function VerificationPopup({
   setShowPopup,
 }) {
   if (!showPopup) return null;
+
+  // State to track link clicks
+  const [link1Clicked, setLink1Clicked] = useState(false);
+  const [link2Clicked, setLink2Clicked] = useState(false);
+
+  // Check session storage for follow completion on mount
+  useEffect(() => {
+    const hasFollowed = sessionStorage.getItem('hasFollowedSireadell');
+    if (hasFollowed === 'true') {
+      handleNextStage(); // Skip to captcha stage if already followed
+    }
+  }, [handleNextStage]);
+
+  // Handle click for the first link (@sireadell)
+  const handleLink1Click = (e) => {
+    e.preventDefault(); // Prevent immediate navigation
+    handleFollowClick(e); // Call the original follow click handler
+    setLink1Clicked(true);
+    window.open('https://x.com/sireadell', '_blank'); // Open in new tab
+  };
+
+  // Handle click for the second link (Somnia Network)
+  const handleLink2Click = (e) => {
+    e.preventDefault(); // Prevent immediate navigation
+    setLink2Clicked(true);
+    window.open('https://x.com/Sireadell/status/1947931149189230927', '_blank'); // Open in new tab
+  };
+
+  // Enable "I’ve Followed" button only when both links are clicked
+  const isFollowComplete = link1Clicked && link2Clicked;
+  const canProceed = stage === 'follow' ? isFollowComplete && timer === 0 : captchaAnswer.trim() !== '';
+
+  // Save follow completion to session storage when proceeding
+  const handleProceed = () => {
+    if (stage === 'follow' && isFollowComplete) {
+      sessionStorage.setItem('hasFollowedSireadell', 'true');
+    }
+    handleNextStage();
+  };
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -31,9 +70,19 @@ export default function VerificationPopup({
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-purple-400 underline hover:text-purple-300"
-                onClick={handleFollowClick}
+                onClick={handleLink1Click}
               >
                 @sireadell
+              </a>{' '}
+              and Interact with{' '}
+              <a
+                href="https://x.com/Sireadell/status/1947931149189230927"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-purple-400 underline hover:text-purple-300"
+                onClick={handleLink2Click}
+              >
+                This Tweet
               </a>{' '}
               to unlock tapping.
             </p>
@@ -61,8 +110,8 @@ export default function VerificationPopup({
         </div>
         <div className="flex justify-center gap-2">
           <button
-            onClick={handleNextStage}
-            disabled={timer > 0}
+            onClick={handleProceed}
+            disabled={!canProceed}
             className="bg-purple-600 px-4 py-2 rounded-lg text-white hover:bg-purple-700 disabled:bg-gray-500 disabled:cursor-not-allowed"
           >
             {stage === 'follow' ? 'I’ve Followed' : 'Verify Humanity'}
