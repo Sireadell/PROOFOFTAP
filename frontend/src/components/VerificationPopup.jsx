@@ -38,7 +38,7 @@ export default function VerificationPopup({
   const handleLink2Click = (e) => {
     e.preventDefault(); // Prevent immediate navigation
     setLink2Clicked(true);
-    window.open('https://x.com/Sireadell/status/1948247178058605029', '_blank'); // Open in new tab
+    window.open('https://x.com/Sireadell/status/1948617126584950791', '_blank'); // Open in new tab
   };
 
   // Enable "I’ve Followed" button only when both links are clicked
@@ -76,7 +76,7 @@ export default function VerificationPopup({
               </a>{' '}
               and Interact with{' '}
               <a
-                href="https://x.com/Sireadell/status/1948247178058605029"
+                href="https://x.com/Sireadell/status/1948617126584950791"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-purple-400 underline hover:text-purple-300"
