@@ -14,38 +14,40 @@ export default function VerificationPopup({
 }) {
   if (!showPopup) return null;
 
-  // State to track link clicks
   const [link1Clicked, setLink1Clicked] = useState(false);
   const [link2Clicked, setLink2Clicked] = useState(false);
 
-  // Check session storage for follow completion on mount
+  // CHANGE: Add logging to track timer changes
+  useEffect(() => {
+    console.log(`Timer updated: ${timer}, Stage: ${stage}`);
+  }, [timer, stage]);
+
   useEffect(() => {
     const hasFollowed = sessionStorage.getItem('hasFollowedSireadell');
     if (hasFollowed === 'true') {
-      handleNextStage(); // Skip to captcha stage if already followed
+      handleNextStage();
     }
   }, [handleNextStage]);
 
-  // Handle click for the first link (@sireadell)
   const handleLink1Click = (e) => {
-    e.preventDefault(); // Prevent immediate navigation
-    handleFollowClick(e); // Call the original follow click handler
+    e.preventDefault();
+    handleFollowClick(e);
     setLink1Clicked(true);
-    window.open('https://x.com/sireadell', '_blank'); // Open in new tab
+    window.open('https://x.com/sireadell', '_blank');
   };
 
-  // Handle click for the second link (Somnia Network)
   const handleLink2Click = (e) => {
-    e.preventDefault(); // Prevent immediate navigation
+    e.preventDefault();
     setLink2Clicked(true);
-    window.open('https://x.com/Sireadell/status/1948617126584950791', '_blank'); // Open in new tab
+    window.open('https://x.com/Sireadell/status/1949032668760260666', '_blank');
   };
 
-  // Enable "I’ve Followed" button only when both links are clicked
   const isFollowComplete = link1Clicked && link2Clicked;
   const canProceed = stage === 'follow' ? isFollowComplete && timer === 0 : captchaAnswer.trim() !== '';
 
-  // Save follow completion to session storage when proceeding
+  // CHANGE: Validate timer to prevent negative or unexpected values
+  const safeTimer = Math.max(0, timer);
+
   const handleProceed = () => {
     if (stage === 'follow' && isFollowComplete) {
       sessionStorage.setItem('hasFollowedSireadell', 'true');
@@ -76,7 +78,7 @@ export default function VerificationPopup({
               </a>{' '}
               and Interact with{' '}
               <a
-                href="https://x.com/Sireadell/status/1948617126584950791"
+                href="https://x.com/Sireadell/status/1949032668760260666"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-purple-400 underline hover:text-purple-300"
@@ -100,11 +102,12 @@ export default function VerificationPopup({
           )}
         </div>
         <div className="mb-4">
-          <p className="text-gray-400">Verification in {timer}s</p>
+          {/* CHANGE: Use safeTimer to prevent negative display */}
+          <p className="text-gray-400">Verification in {safeTimer}s</p>
           <div className="w-full h-2 bg-gray-700 rounded-full overflow-hidden">
             <div
               className="h-full bg-purple-600 transition-all duration-1000"
-              style={{ width: `${(timer / 10) * 100}%` }}
+              style={{ width: `${(safeTimer / 10) * 100}%` }}
             ></div>
           </div>
         </div>
@@ -118,7 +121,7 @@ export default function VerificationPopup({
           </button>
           <button
             onClick={() => setShowPopup(false)}
-            disabled={timer > 0 || decoyDelay > 0}
+            disabled={safeTimer > 0 || decoyDelay > 0}
             className="bg-gray-600 px-4 py-2 rounded-lg text-white hover:bg-gray-700 disabled:bg-gray-500 disabled:cursor-not-allowed"
           >
             Close
