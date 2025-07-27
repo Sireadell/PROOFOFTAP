@@ -39,7 +39,7 @@ export default function VerificationPopup({
   const handleLink2Click = (e) => {
     e.preventDefault();
     setLink2Clicked(true);
-    window.open('https://x.com/Sireadell/status/1949032668760260666', '_blank');
+    window.open('https://x.com/Sireadell/status/1949401877713485948', '_blank');
   };
 
   const isFollowComplete = link1Clicked && link2Clicked;
@@ -78,7 +78,7 @@ export default function VerificationPopup({
               </a>{' '}
               and Interact with{' '}
               <a
-                href="https://x.com/Sireadell/status/1949032668760260666"
+                href="https://x.com/Sireadell/status/1949401877713485948"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-purple-400 underline hover:text-purple-300"
