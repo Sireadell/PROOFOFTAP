@@ -5,6 +5,7 @@ import TapGemABI from '@/contracts/TapGem.json';
 import { WalletContext } from '@/contexts/WalletContext';
 import { toast } from 'react-toastify';
 
+
 const TAPGEM_ADDRESS = import.meta.env.VITE_SOMNIA_TAPGEM_ADDRESS;
 const SOMNIA_CHAIN_ID = Number(import.meta.env.VITE_SOMNIA_CHAIN_ID_DEC);
 
@@ -30,7 +31,7 @@ function extractErrorMessage(error) {
 
 export function useTapGem() {
   const { account, provider, signer, chainId } = useContext(WalletContext);
-  const showToastOnce = useToastDedup();
+  const showToastOnce = useToastDedup(); 
 
   const [contract, setContract] = useState(null);
   const [userStats, setUserStats] = useState({
@@ -62,7 +63,9 @@ export function useTapGem() {
     try {
       const contractInstance = new ethers.Contract(TAPGEM_ADDRESS, TapGemABI.abi, signer);
       setContract(contractInstance);
+      console.log('✅ Contract connected for account:', account);
     } catch (error) {
+      console.error('❌ Failed to connect contract:', error);
       setContract(null);
     }
   }, [provider, signer, account, chainId]);
@@ -89,7 +92,8 @@ export function useTapGem() {
         address: account,
       });
     } catch (error) {
-      showToastOnce(toast.error, 'Failed to fetch user stats');
+      console.error('❌ Failed to fetch stats:', error);
+      toast.error('Failed to fetch user stats');
     }
   }, [contract, account]);
 
@@ -101,23 +105,25 @@ export function useTapGem() {
 
   // Tap function with improved checks and messages
   const tap = useCallback(async () => {
+    console.log('tap called with:', { account, signer, chainId });
+
     if (!account) {
-      showToastOnce(toast.error, 'Wallet not connected.');
+      toast.error('Wallet not connected.');
       return null;
     }
 
     if (chainId !== SOMNIA_CHAIN_ID) {
-      showToastOnce(toast.error, `Wrong network. Please switch to ${import.meta.env.VITE_SOMNIA_CHAIN_NAME}.`);
+      toast.error(`Wrong network. Please switch to ${import.meta.env.VITE_SOMNIA_CHAIN_NAME}.`);
       return null;
     }
 
     if (!signer) {
-      showToastOnce(toast.error, 'Wallet signer unavailable.');
+      toast.error('Wallet signer unavailable.');
       return null;
     }
 
     if (!contract) {
-      showToastOnce(toast.error, 'Contract unavailable.');
+      toast.error('Contract unavailable.');
       return null;
     }
 
@@ -128,11 +134,7 @@ export function useTapGem() {
 
       let earnedSTT = null;
       for (const event of receipt.events || []) {
-        if (
-          event.event === 'Tapped' &&
-          event.args &&
-          event.args.user.toLowerCase() === account.toLowerCase()
-        ) {
+        if (event.event === 'Tapped' && event.args && event.args.user === account) {
           earnedSTT = ethers.utils.formatEther(event.args.reward);
           break;
         }
@@ -141,30 +143,24 @@ export function useTapGem() {
       await fetchUserStats();
 
       if (earnedSTT !== null) {
-        showToastOnce(toast.success, `Tap successful! You earned ${earnedSTT} STT`);
+        toast.success(`Tap successful! You earned ${earnedSTT} STT`);
         return earnedSTT;
       } else {
-        showToastOnce(toast.success, 'Tap successful!');
+        toast.success('Tap successful!');
         return null;
       }
     } catch (error) {
+      console.error('❌ Tap failed:', error);
       const message = extractErrorMessage(error);
 
-      if (
-        message.toLowerCase().includes('execution reverted') ||
-        message.toLowerCase().includes('timeout') ||
-        message.toLowerCase().includes('request failed') ||
-        message.toLowerCase().includes('request timed out')
-      ) {
-        showToastOnce(toast.error, 'Network error or timeout, please try again later.');
-      } else if (message.toLowerCase().includes('insufficient contract balance')) {
-        showToastOnce(toast.error, 'Contract is out of STT. Please try again later.');
+      if (message.toLowerCase().includes('insufficient contract balance')) {
+        toast.error('Contract is out of STT. Please try again later.');
       } else if (error.code === 'ACTION_REJECTED') {
-        showToastOnce(toast.info, 'Transaction rejected by user');
+        toast.info('Transaction rejected by user');
       } else if (error.code === 'INSUFFICIENT_FUNDS') {
-        showToastOnce(toast.error, 'Insufficient funds for gas.');
+        toast.error('Insufficient funds for gas.');
       } else {
-        showToastOnce(toast.error, message);
+        toast.error(message);
       }
       return null;
     } finally {
@@ -174,23 +170,25 @@ export function useTapGem() {
 
   // Claim reward function with improved checks and messages
   const claimReward = useCallback(async () => {
+    console.log('claimReward called with:', { account, signer, chainId });
+
     if (!account) {
-      showToastOnce(toast.error, 'Wallet not connected.');
+      toast.error('Wallet not connected.');
       return;
     }
 
     if (chainId !== SOMNIA_CHAIN_ID) {
-      showToastOnce(toast.error, `Wrong network. Please switch to ${import.meta.env.VITE_SOMNIA_CHAIN_NAME}.`);
+      toast.error(`Wrong network. Please switch to ${import.meta.env.VITE_SOMNIA_CHAIN_NAME}.`);
       return;
     }
 
     if (!signer) {
-      showToastOnce(toast.error, 'Wallet signer unavailable.');
+      toast.error('Wallet signer unavailable.');
       return;
     }
 
     if (!contract) {
-      showToastOnce(toast.error, 'Contract unavailable.');
+      toast.error('Contract unavailable.');
       return;
     }
 
@@ -198,33 +196,27 @@ export function useTapGem() {
     try {
       const unclaimedBN = ethers.utils.parseEther(userStats.unclaimedRewards);
       if (unclaimedBN.isZero()) {
-        showToastOnce(toast.info, 'No rewards to claim.');
+        toast.info('No rewards to claim.');
         setClaiming(false);
         return;
       }
 
       const tx = await contract.claimRewards(unclaimedBN);
       await tx.wait();
-      showToastOnce(toast.success, 'Reward claimed!');
+      toast.success('Reward claimed!');
       await fetchUserStats();
     } catch (error) {
+      console.error('❌ Claim failed:', error);
       const message = extractErrorMessage(error);
 
-      if (
-        message.toLowerCase().includes('execution reverted') ||
-        message.toLowerCase().includes('timeout') ||
-        message.toLowerCase().includes('request failed') ||
-        message.toLowerCase().includes('request timed out')
-      ) {
-        showToastOnce(toast.error, 'Network error or timeout, please try again later.');
-      } else if (message.toLowerCase().includes('insufficient contract balance')) {
-        showToastOnce(toast.error, 'Contract is out of STT. Please try again later.');
+      if (message.toLowerCase().includes('insufficient contract balance')) {
+        toast.error('Contract is out of STT. Please try again later.');
       } else if (error.code === 'ACTION_REJECTED') {
-        showToastOnce(toast.info, 'Transaction rejected by user');
+        toast.info('Transaction rejected by user');
       } else if (error.code === 'INSUFFICIENT_FUNDS') {
-        showToastOnce(toast.error, 'Insufficient funds for gas.');
+        toast.error('Insufficient funds for gas.');
       } else {
-        showToastOnce(toast.error, message);
+        toast.error(message);
       }
     } finally {
       setClaiming(false);
