@@ -3,80 +3,124 @@ import React, { useState, useEffect } from 'react';
 export default function VerificationPopup({
   showPopup,
   stage: propStage,
-  timer,
   captchaAnswer,
   captchaQuestion,
   decoyDelay,
   setCaptchaAnswer,
   handleFollowClick,
-  handleNextStage = () => Promise.resolve(),
+  handleTweetClick,
+  handleNextStage,
   setShowPopup,
 }) {
   if (!showPopup) return null;
 
-  // Define safeTimer to prevent undefined errors
-  const safeTimer = Math.max(0, timer);
-
-  // Use propStage directly, avoiding internal state for stage
-  const linkClicked = sessionStorage.getItem('hasFollowedSireadell') === 'true';
-
-  // State for countdown (48 hours from July 29, 2025, 01:28 AM CEST)
-  const endDate = new Date('2025-07-31T01:28:00+02:00').getTime();
-  const [giveawayActive, setGiveawayActive] = useState(true);
-  const [countdown, setCountdown] = useState(Math.floor((endDate - Date.now()) / 1000));
-  // State for error display
+  // State for follow and interaction status
+  const [followStatus, setFollowStatus] = useState('pending');
+  const [interactionStatus, setInteractionStatus] = useState('pending');
+  const [followLinkClicked, setFollowLinkClicked] = useState(false);
+  const [tweetLinkClicked, setTweetLinkClicked] = useState(false);
+  const [followStatusMessage, setFollowStatusMessage] = useState(null);
+  const [interactionStatusMessage, setInteractionStatusMessage] = useState(null);
+  const [checkingFollow, setCheckingFollow] = useState(false);
+  const [checkingInteraction, setCheckingInteraction] = useState(false);
   const [errorMessage, setErrorMessage] = useState(null);
-  // State for loading
   const [loading, setLoading] = useState(false);
 
-  // Countdown timer logic (run once on mount, updated to current time)
-  useEffect(() => {
-    if (countdown > 0) {
-      const timerId = setInterval(() => {
-        setCountdown((prev) => {
-          const newCountdown = Math.floor((endDate - Date.now()) / 1000);
-          if (newCountdown <= 0) {
-            setGiveawayActive(false);
-            return 0;
-          }
-          return newCountdown;
-        });
-      }, 1000);
-      return () => clearInterval(timerId);
+  // Simulated decoy verification for follow (12–15 seconds)
+  const verifyFollow = async () => {
+    setCheckingFollow(true);
+    setFollowStatusMessage('Verifying Follow...');
+    try {
+      const delay = Math.floor(Math.random() * (15000 - 12000 + 1)) + 12000; // 12–15s
+      await new Promise((resolve) => setTimeout(resolve, delay));
+      setFollowStatus('verified');
+      setFollowStatusMessage(null);
+    } catch (error) {
+      setFollowStatus('failed');
+      setFollowStatusMessage('Failed to verify follow. Please try again.');
+    } finally {
+      setCheckingFollow(false);
     }
-  }, []); // Empty dependency array to run once on mount
+  };
 
-  // Handle decoyDelay to show only once, simplified
-  useEffect(() => {
-    let timeoutId;
-    if (decoyDelay > 0) {
-      timeoutId = setTimeout(() => {
-        // No toast visibility state needed; let TapPage handle toasts
-      }, 3000);
+  // Simulated decoy verification for interaction (10 seconds)
+  const verifyInteraction = async () => {
+    setCheckingInteraction(true);
+    setInteractionStatusMessage('Verifying Interaction...');
+    try {
+      const delay = 10000; // 10s
+      await new Promise((resolve) => setTimeout(resolve, delay));
+      setInteractionStatus('verified');
+      setInteractionStatusMessage(null);
+    } catch (error) {
+      setInteractionStatus('failed');
+      setInteractionStatusMessage('Failed to verify interaction. Please try again.');
+    } finally {
+      setCheckingInteraction(false);
     }
-    return () => clearTimeout(timeoutId);
-  }, [decoyDelay]);
+  };
+
+  // Trigger verification when links are clicked
+  useEffect(() => {
+    if (propStage === 'follow' && followLinkClicked && !checkingFollow) {
+      verifyFollow();
+    }
+  }, [propStage, followLinkClicked]);
+
+  useEffect(() => {
+    if (propStage === 'follow' && tweetLinkClicked && !checkingInteraction) {
+      verifyInteraction();
+    }
+  }, [propStage, tweetLinkClicked]);
 
   const handleLinkClick = (e) => {
     e.preventDefault();
-    handleFollowClick(e);
+    handleFollowClick();
     window.open('https://x.com/sireadell', '_blank');
+    setFollowLinkClicked(true);
   };
 
-  const canProceed = propStage === 'follow'
-    ? linkClicked && safeTimer === 0
-    : (giveawayActive || propStage === 'captcha') && captchaAnswer.trim() !== '' && safeTimer === 0;
+  const handleTweetLinkClick = (e) => {
+    e.preventDefault();
+    handleTweetClick();
+    window.open('https://x.com/Sireadell/status/1950858843153478022', '_blank');
+    setTweetLinkClicked(true);
+  };
+
+  // Check if follow stage is complete
+  const isFollowStageComplete = followStatus === 'verified' && interactionStatus === 'verified' && followLinkClicked && tweetLinkClicked;
 
   const handleProceed = async () => {
-    if (canProceed) {
+    setErrorMessage(null);
+    if (propStage === 'follow') {
+      if (!followLinkClicked) {
+        setErrorMessage('Please click the follow link to verify.');
+        return;
+      }
+      if (!tweetLinkClicked) {
+        setErrorMessage('Please click the tweet link to verify.');
+        return;
+      }
+      if (followStatus !== 'verified' || interactionStatus !== 'verified') {
+        setErrorMessage('Please wait for both verifications to complete.');
+        return;
+      }
       setLoading(true);
       try {
-        if (propStage === 'follow' && linkClicked) {
-          // Stage update is handled by TapPage via handleNextStage
-        } else {
-          await handleNextStage();
-          setShowPopup(false);
-        }
+        await handleNextStage(true); // Signal follow stage completion
+      } catch (error) {
+        setErrorMessage('An error occurred. Please try again or contact support.');
+      } finally {
+        setLoading(false);
+      }
+    } else if (propStage === 'captcha') {
+      if (captchaAnswer.trim() === '') {
+        setErrorMessage('Please enter the captcha answer.');
+        return;
+      }
+      setLoading(true);
+      try {
+        await handleNextStage(false);
       } catch (error) {
         setErrorMessage('An error occurred. Please try again or contact support.');
       } finally {
@@ -85,107 +129,128 @@ export default function VerificationPopup({
     }
   };
 
-  // Format countdown for display
-  const days = Math.floor(countdown / 86400);
-  const hours = Math.floor((countdown % 86400) / 3600);
-  const minutes = Math.floor((countdown % 3600) / 60);
-  const seconds = countdown % 60;
-
   return (
     <div className="fixed inset-0 bg-gradient-to-b from-black/80 to-purple-900/60 backdrop-blur-lg flex items-center justify-center z-50">
       <div className="bg-gray-900/90 backdrop-blur-lg p-6 rounded-2xl shadow-xl text-center max-w-sm w-full max-h-[80vh] overflow-auto border border-purple-400/20">
         {/* Header */}
         <h2 className="text-2xl font-bold text-white mb-3 bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-500">
-          {giveawayActive ? '500K Taps Celebration!' : 'Verify to Tap!'}
+          Verify to Tap!
         </h2>
         {/* Error Message */}
         {errorMessage && (
           <div className="text-red-400 text-xs mb-2">{errorMessage}</div>
         )}
-        {/* Giveaway Instructions (shown during countdown) */}
-        {giveawayActive && (
-          <div className="bg-purple-900/10 p-3 rounded-lg mb-4 text-gray-100 text-xs">
-            {/* Prominent Win Text */}
-            <div className="p-2 bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg mb-2">
-              <p className="text-base font-bold text-white">
-                🎁 Win <span className="text-lg text-yellow-300">10 STT!</span> 50 Winners!
-              </p>
-            </div>
-            <ul className="text-left list-disc list-inside mt-1">
-              <li>
+        {/* Status Messages (only shown in follow stage) */}
+        {propStage === 'follow' && (followStatusMessage || interactionStatusMessage) && (
+          <div className="text-yellow-300 text-xs mb-2 flex flex-col items-center justify-center">
+            {followStatusMessage && (
+              <div className="flex items-center">
+                {checkingFollow && (
+                  <svg
+                    className="animate-spin h-4 w-4 mr-2 text-yellow-300"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    />
+                  </svg>
+                )}
+                {followStatusMessage}
+              </div>
+            )}
+            {interactionStatusMessage && (
+              <div className="flex items-center mt-1">
+                {checkingInteraction && (
+                  <svg
+                    className="animate-spin h-4 w-4 mr-2 text-yellow-300"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    />
+                  </svg>
+                )}
+                {interactionStatusMessage}
+              </div>
+            )}
+          </div>
+        )}
+        {/* Progress Indicator */}
+        <div className="flex justify-between text-[10px] mb-3 text-gray-300 font-medium">
+          <span className={propStage === 'follow' ? 'text-purple-300 font-semibold' : 'text-gray-500'}>
+            1. Follow & Interact
+          </span>
+          <span className={propStage === 'captcha' ? 'text-purple-300 font-semibold' : 'text-gray-500'}>
+            2. Verify
+          </span>
+        </div>
+        {/* Verification Stages */}
+        <div className="mb-4">
+          {propStage === 'follow' ? (
+            <div className="text-gray-200 text-xs">
+              <p>
                 Follow{' '}
                 <a
                   href="https://x.com/sireadell"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-purple-300 hover:text-purple-200 underline"
+                  className="text-purple-300 hover:text-purple-200 font-medium"
                   onClick={handleLinkClick}
                 >
-                  @Sireadell
-                </a>
-              </li>
-              <li>
-                Like & comment on{' '}
+                  @sireadell
+                </a>{' '}
+                {followStatus === 'verified' ? (
+                  <span className="text-green-400">✓ Verified</span>
+                ) : followStatus === 'failed' ? (
+                  <span className="text-red-400">✗ Failed</span>
+                ) : (
+                  <span className="text-yellow-300">⏳ Pending</span>
+                )}
+              </p>
+              <p className="mt-1">
+                Interact with{' '}
                 <a
-                  href="https://x.com/Sireadell/status/1949967282181914720"
+                  href="https://x.com/Sireadell/status/1950858843153478022"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-purple-300 hover:text-purple-200 underline"
+                  onClick={handleTweetLinkClick}
                 >
-                  this post
-                </a>
-              </li>
-              <li>Share honest feedback about Proof of Tap</li>
-              <li>Tag 2 friends in your comment</li>
-            </ul>
-            {/* Prominent Countdown */}
-            <div className="mt-3 p-2 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg">
-              <p className="text-base font-bold text-white">⏰ Giveaway Ends in</p>
-              <p className="text-lg text-yellow-300">
-                {days}d {hours}h {minutes}m {seconds}s
+                  this tweet
+                </a>{' '}
+                {interactionStatus === 'verified' ? (
+                  <span className="text-green-400">✓ Verified</span>
+                ) : interactionStatus === 'failed' ? (
+                  <span className="text-red-400">✗ Failed</span>
+                ) : (
+                  <span className="text-yellow-300">⏳ Pending</span>
+                )}
               </p>
-              <p className="text-[10px] text-gray-300 mt-1">July 31, 2025, 01:28 AM CEST</p>
             </div>
-          </div>
-        )}
-        {/* Progress Indicator (shown after giveaway ends) */}
-        {!giveawayActive && (
-          <div className="flex justify-between text-[10px] mb-3 text-gray-300 font-medium">
-            <span className={propStage === 'follow' ? 'text-purple-300 font-semibold' : 'text-gray-500'}>
-              1. Follow
-            </span>
-            <span className={propStage === 'captcha' ? 'text-purple-300 font-semibold' : 'text-gray-500'}>
-              2. Verify
-            </span>
-          </div>
-        )}
-        {/* Verification Stages */}
-        <div className="mb-4">
-          {giveawayActive ? (
-            <>
-              <p className="text-gray-200 text-xs mb-2">{captchaQuestion.question}</p>
-              <input
-                type="number"
-                placeholder="Enter answer"
-                value={captchaAnswer}
-                onChange={(e) => setCaptchaAnswer(e.target.value)}
-                className="w-full px-3 py-1.5 text-xs rounded-lg bg-gray-800/50 border border-gray-600 text-white focus:outline-none focus:ring-2 focus:ring-purple-400 transition-all"
-              />
-            </>
-          ) : propStage === 'follow' ? (
-            <p className="text-gray-200 text-xs">
-              Follow{' '}
-              <a
-                href="https://x.com/sireadell"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-purple-300 hover:text-purple-200 font-medium"
-                onClick={handleLinkClick}
-              >
-                @sireadell
-              </a>{' '}
-              to proceed.
-            </p>
           ) : (
             <>
               <p className="text-gray-200 text-xs mb-2">{captchaQuestion.question}</p>
@@ -199,21 +264,11 @@ export default function VerificationPopup({
             </>
           )}
         </div>
-        {/* Timer Bar */}
-        <div className="mb-4">
-          <p className="text-gray-400 text-[10px] mb-1">Verification in {safeTimer}s</p>
-          <div className="w-full h-1 bg-gray-700/50 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-gradient-to-r from-purple-400 to-pink-400 transition-all duration-1000"
-              style={{ width: `${(safeTimer / 10) * 100}%` }}
-            />
-          </div>
-        </div>
         {/* Buttons */}
         <div className="flex justify-center gap-2">
           <button
             onClick={handleProceed}
-            disabled={!canProceed || loading}
+            disabled={propStage === 'follow' ? !isFollowStageComplete : (captchaAnswer.trim() === '' || loading || checkingFollow || checkingInteraction)}
             className="bg-gradient-to-r from-purple-500 to-pink-500 px-4 py-1.5 rounded-lg text-white text-xs font-medium hover:from-purple-600 hover:to-pink-600 disabled:bg-gray-600 disabled:cursor-not-allowed transition-all flex items-center justify-center"
           >
             {loading ? (
@@ -240,15 +295,15 @@ export default function VerificationPopup({
                 </svg>
                 Verifying...
               </>
-            ) : giveawayActive || propStage === 'captcha' ? (
-              'Verify Humanity'
+            ) : propStage === 'follow' ? (
+              'I’ve Followed & Interacted'
             ) : (
-              'I’ve Followed'
+              'Verify Humanity'
             )}
           </button>
           <button
             onClick={() => setShowPopup(false)}
-            disabled={safeTimer > 0 || decoyDelay > 0}
+            disabled={decoyDelay > 0 || checkingFollow || checkingInteraction}
             className="bg-gray-700/50 px-4 py-1.5 rounded-lg text-white text-xs font-medium hover:bg-gray-600 disabled:bg-gray-600 disabled:cursor-not-allowed transition-all"
           >
             Close
@@ -257,7 +312,7 @@ export default function VerificationPopup({
         {/* Toast for decoyDelay */}
         {decoyDelay > 0 && (
           <div className="mt-2 text-[10px] text-yellow-300 bg-yellow-900/20 p-1.5 rounded-lg">
-            Complete the {giveawayActive || propStage === 'captcha' ? 'captcha' : 'follow'} step first! Delayed by {Math.min(decoyDelay, 30)}s.
+            Complete the {propStage === 'follow' ? 'follow & interact' : 'captcha'} step first! Delayed by {Math.min(decoyDelay, 30)}s.
           </div>
         )}
         {/* Terms Link */}
@@ -265,7 +320,7 @@ export default function VerificationPopup({
           href="/giveaway-terms"
           className="mt-3 text-[10px] text-purple-300 hover:text-purple-200 underline"
         >
-          {giveawayActive ? 'Giveaway Terms' : 'Terms'}
+          
         </a>
       </div>
     </div>

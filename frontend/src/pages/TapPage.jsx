@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useContext } from 'react';
 import { useTapGem } from '@/hooks/useTapGem';
 import { WalletContext } from '@/contexts/WalletContext';
 import { toast } from 'react-toastify';
@@ -12,9 +12,9 @@ export default function TapPage() {
 
   const [showPopup, setShowPopup] = useState(false);
   const [stage, setStage] = useState('follow'); // follow -> captcha
-  const [hasClickedFollow, setHasClickedFollow] = useState(() => sessionStorage.getItem('hasClickedFollow') === 'true');
+  const [hasClickedFollow, setHasClickedFollow] = useState(false);
+  const [hasClickedTweet, setHasClickedTweet] = useState(false);
   const [isVerified, setIsVerified] = useState(() => sessionStorage.getItem('isVerified') === 'true');
-  const [timer, setTimer] = useState(10);
   const [decoyDelay, setDecoyDelay] = useState(0);
   const [captchaAnswer, setCaptchaAnswer] = useState('');
   const [captchaQuestion, setCaptchaQuestion] = useState(generateCaptcha());
@@ -37,7 +37,6 @@ export default function TapPage() {
       try {
         await connectWallet();
       } catch (error) {
-        console.error('Wallet connection failed:', error);
         toast.error('Wallet connection failed. Try again.');
       }
       return;
@@ -46,7 +45,6 @@ export default function TapPage() {
     if (!isVerified) {
       setShowPopup(true);
       setStage('follow');
-      setTimer(10);
       setDecoyDelay(3);
       return;
     }
@@ -57,51 +55,34 @@ export default function TapPage() {
         toast.success(`Tap successful! Earned ${earned} STT`);
       }
     } catch (error) {
-      console.error('Tap error:', error);
       toast.error('Tap failed. Please try again.');
     }
   };
 
   const handleFollowClick = () => {
     setHasClickedFollow(true);
-    sessionStorage.setItem('hasClickedFollow', 'true');
-    window.open('https://x.com/sireadell', '_blank');
     toast.info('Followed @sireadell? Awesome, let’s keep going!');
   };
 
-  const handleNextStage = () => {
-    if (stage === 'follow' && hasClickedFollow) {
+  const handleTweetClick = () => {
+    setHasClickedTweet(true);
+    toast.info('Interacted with the tweet? Great job!');
+  };
+
+  const handleNextStage = (isFollowStageComplete) => {
+    if (stage === 'follow' && isFollowStageComplete) {
       setStage('captcha');
-      setTimer(10);
       toast.info('Prove you’re not a bot with this quick math!');
     } else if (stage === 'captcha' && parseInt(captchaAnswer) === captchaQuestion.answer) {
-      setTimeout(() => {
-        setIsVerified(true);
-        sessionStorage.setItem('isVerified', 'true');
-        setShowPopup(false);
-        toast.success('Verified! Start tapping!');
-      }, decoyDelay * 1000);
+      setIsVerified(true);
+      sessionStorage.setItem('isVerified', 'true');
+      setShowPopup(false);
+      toast.success('Verified! Start tapping!');
     } else {
       setDecoyDelay((prev) => prev + 3);
       toast.warn(`Complete the ${stage} step first! Delayed by ${decoyDelay + 3}s.`);
     }
   };
-
-  useEffect(() => {
-    if (!showPopup || timer === 0) return;
-
-    const interval = setInterval(() => {
-      setTimer((prev) => {
-        if (prev <= 1) {
-          handleNextStage();
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [showPopup, timer, stage, hasClickedFollow, captchaAnswer, decoyDelay]);
 
   return (
     <div className="flex flex-grow gap-8 p-8 bg-black/60 backdrop-blur-md rounded-xl shadow-xl w-full">
@@ -117,12 +98,12 @@ export default function TapPage() {
       <VerificationPopup
         showPopup={showPopup}
         stage={stage}
-        timer={timer}
         captchaAnswer={captchaAnswer}
         captchaQuestion={captchaQuestion}
         decoyDelay={decoyDelay}
         setCaptchaAnswer={setCaptchaAnswer}
         handleFollowClick={handleFollowClick}
+        handleTweetClick={handleTweetClick}
         handleNextStage={handleNextStage}
         setShowPopup={setShowPopup}
       />
