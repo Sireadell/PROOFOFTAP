@@ -83,7 +83,7 @@ export default function VerificationPopup({
   const handleTweetLinkClick = (e) => {
     e.preventDefault();
     handleTweetClick();
-    window.open('https://x.com/Sireadell/status/1953035343323607366', '_blank');
+    window.open('https://x.com/Sireadell/status/1953389503797748168', '_blank');
     setTweetLinkClicked(true);
   };
 
@@ -234,7 +234,7 @@ export default function VerificationPopup({
               <p className="mt-1">
                 Interact with{' '}
                 <a
-                  href="https://x.com/Sireadell/status/1953035343323607366"
+                  href="https://x.com/Sireadell/status/1953389503797748168"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-purple-300 hover:text-purple-200 underline"
